@@ -48,10 +48,10 @@ def clean_header(header: str) -> str:
     # Only unescape inner quotes if they are double-escaped
     return header.replace('\\"', '"').strip('"')
 
-def convert_condition(condition: str) -> Tuple[str, List[str]]:
+def convert_condition(_condition: str) -> Tuple[str, List[str]]:
     """Convert a Thunderbird condition to Sieve format."""
-    
-    condition = condition.strip()
+
+    condition = _condition.strip()
     if condition.startswith('OR '):
         operator = 'anyof'
         condition = condition[3:]
@@ -69,14 +69,34 @@ def convert_condition(condition: str) -> Tuple[str, List[str]]:
         # Clean header and value
         header = clean_header(header)
         value = clean_header(value)
-        
-        if header == "to or cc":
-            sieve_conditions.append(f'header :contains "to" "{value}"')
-            sieve_conditions.append(f'header :contains "cc" "{value}"')
-        elif operation == 'contains':
-            sieve_conditions.append(f'header :contains "{header}" "{value}"')
-        elif operation == "doesn't contain":
-            sieve_conditions.append(f'not header :contains "{header}" "{value}"')
+
+        simple_headers =["from","to","cc","subject"]
+        print(f"    ℹ️️ header operation value: h'{header}' o'{operation}' v'{value}'")
+        if operation == 'is':
+            if header in simple_headers:
+                sieve_conditions.append(f'header :is "{header.capitalize()}" "{value}"')
+        elif operation =='contains':
+            if header in simple_headers:
+                sieve_conditions.append(f'header :contains "{header.capitalize()}" "{value}"')
+            else:
+                if ' or ' in header:
+                    or_args = header.split(' or ')
+                    capitalized = [w.capitalize() for w in or_args]
+                    header_list = '["' + '","'.join(capitalized)+'"]'
+                    sieve_conditions.append(f'header :contains {header_list} "{value}"')
+                else:
+                    sieve_conditions.append(f'header :contains "{header}" "{value}"')
+        elif operation =='begins with':
+            if header in simple_headers:
+                sieve_conditions.append(f'header :matches "{header.capitalize()}" "{value}*"')
+        elif operation =='ends with':
+            if header in simple_headers:
+                sieve_conditions.append(f'header :contains "{header.capitalize()}" "*{value}"')
+        else:
+            print(f"    ☢️ unhandled header/operation: h'{header}' o'{operation}'")
+
+    if len(sieve_conditions) == 0:
+        print(f"☢️ unhandled condition: {_condition}")
 
     return operator, sieve_conditions
 
@@ -86,26 +106,53 @@ def convert_to_sieve(thunderbird_filter: Dict[str, str]) -> str:
     name = thunderbird_filter.get('name', 'Unnamed Filter')
     condition = thunderbird_filter.get('condition', '')
     actions = []
+    hint=''
 
-    if 'actionValue' in thunderbird_filter:
-        full_path = thunderbird_filter['actionValue']
-        folder_match = re.search(r'INBOX/(.+)$', full_path)
-        if folder_match:
-            folder = folder_match.group(1)
-            actions.append(f'\tfileinto "INBOX/{folder}";')
+    thunder_actions = thunderbird_filter['actions'] if 'actions' in thunderbird_filter else []
+    thunder_value = thunderbird_filter['actionValue'] if 'actionValue' in thunderbird_filter else None
 
     if 'actions' in thunderbird_filter:
-        if "Mark read" in thunderbird_filter['actions']:
+        if "Mark read" in thunder_actions:
             actions.append('\tsetflag "\\\\Seen";')
-        if "Stop execution" in thunderbird_filter['actions']:
+        if "Mark flagged" in thunder_actions:
+            actions.append('\tsetflag "\\\\Flagged";')
+        if "Stop execution" in thunder_actions:
             actions.append('\tstop;')
+        if "Move to folder" in thunder_actions:
+            full_path = thunder_value
+            folder_match = re.search(r'inbox/(.+)$', full_path.lower())
+            if folder_match:
+                folder = folder_match.group(1)
+                actions.append(f'\tfileinto "INBOX.{folder.replace('.','-').replace('/','.')}";')
+            elif '/Trash/' in full_path:
+                hint = f"rule deactivated because target is Trash '{full_path}'"
+
 
     operator, sieve_conditions = convert_condition(condition)
 
-    sieve_rule = f"# rule:[{name}]\n"
-    sieve_rule += f"if {operator} (\n    "
-    sieve_rule += ",\n    ".join(sieve_conditions)
-    sieve_rule += "\n)\n{\n" + "\n".join(actions) + "\n}"
+    if len(sieve_conditions) == 0 :
+        print(f"⚠️ see rule '{name}' (unhandled condition)")
+        sieve_rule = f"# WARNING: condition not convertable\n"
+        sieve_rule += f"# {condition}\n"
+        sieve_rule += f"# rule:[{name}]\n"
+
+        sieve_rule += f"#if {operator} (\n#    "
+        sieve_rule += "#,\n#    ".join(sieve_conditions)
+        sieve_rule += "\n#)\n#{\n#" + "\n#".join(actions) + "\n#}"
+    elif len(actions)==0:
+        print(f"⚠️ see rule '{name}' (missing action)")
+        sieve_rule = f"# WARNING: rule has no action\n"
+        sieve_rule += f"# rule:[{name}]\n"
+        if hint:
+            sieve_rule += f"# hint {hint}\n"
+        sieve_rule += f"# conditions {condition}\n"
+        sieve_rule += f"# actions {thunder_actions}\n"
+        sieve_rule += f"# values {thunder_value}\n"
+    else:
+        sieve_rule = f"# rule:[{name}]\n"
+        sieve_rule += f"if {operator} (\n    "
+        sieve_rule += ",\n    ".join(sieve_conditions)
+        sieve_rule += "\n)\n{\n" + "\n".join(actions) + "\n}"
 
     return sieve_rule
 
