@@ -1,5 +1,5 @@
 # Thunderbird-Sieve-Converter
-This Python script converts Thunderbird email filter rules (from `msgFilterRules.dat`) to Sieve script format, which can be used with email systems supporting Sieve filtering, such as Roundcube.
+This Python script converts Thunderbird email filter rules (from `msgFilterRules.dat`) to Sieve script format, which can be used with email systems supporting Sieve filtering, such as Roundcube. It can also convert a Sieve script back to Thunderbird filters.
 
 # Usage
 ```
@@ -9,6 +9,19 @@ python filter_converter.py /path/to/msgFilterRules.dat [output_file.sieve]
 - The second argument (optional) specifies the output Sieve file. If omitted, it defaults to roundcube.sieve.
 
 Requires Python 3.8 or later. No other dependencies.
+
+## Sieve to Thunderbird
+```
+python filter_converter.py --to-thunderbird --account ACCOUNT script.sieve [msgFilterRules.dat]
+```
+- `ACCOUNT` is either the account's current `msgFilterRules.dat` (the account is read from its folder targets) or the account URI, such as `imap://me%40uni.gr@mail.uni.gr`.
+- The output defaults to `msgFilterRules.dat` in the current directory. An existing file is never overwritten.
+
+To find the account URI, right-click any folder of the account in Thunderbird, choose Properties and copy the start of "Location", up to the first `/` after the server name. Alternatively, Account Settings > Server Settings shows the "User Name" and "Server Name": the URI is `imap://USER@SERVER`, with any `@` inside the user name written as `%40`.
+
+The account's current filter file is in your Thunderbird profile, in `ImapMail/<server name>/msgFilterRules.dat`. Help > Troubleshooting Information > Profile Folder opens the profile. To install the converted filters, close Thunderbird, back up that file and replace it with the new one.
+
+Rules using `elsif`/`else`, nested `anyof`/`allof`, `:regex`, case-sensitive comparators or tests Thunderbird does not have are left out and listed as warnings. Actions such as `vacation` and `reject` are skipped.
 
 # What gets converted
 - Conditions on subject, from, to, cc, "to or cc", "all addresses", body, size and custom headers
