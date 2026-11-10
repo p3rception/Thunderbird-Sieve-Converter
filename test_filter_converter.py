@@ -189,7 +189,7 @@ if header :comparator "i;octet" :is "subject" "X" { stop; }
                             [['Delete', '']]),
             'big': ([('AND', 'size', False, 'is greater than', '99'), ('AND', 'list-id', True, "isn't empty", '')],
                     [['Move to folder', ACCOUNT + '/INBOX/Big'], ['Mark read', ''], ['Mark flagged', '']]),
-            'away': ([('OR', 'subject', False, 'contains', 'holiday')], [['Forward', 'boss@corp.com'], ['Delete', '']]),
+            'away': ([('AND', 'subject', False, 'contains', 'holiday')], [['Forward', 'boss@corp.com'], ['Delete', '']]),
             'Rule 4': ([('AND', 'subject', False, "doesn't contain", 'a'), ('AND', 'subject', False, "doesn't contain", 'b')],
                        [['Copy to folder', ACCOUNT + '/Seen Folder']]),
             'branches': ([], [['Stop execution', '']]),

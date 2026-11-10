@@ -463,7 +463,8 @@ def sieve_test_terms(name: str, args, negate: bool):
         else:
             operator, key = sieve_operator(match, key, negate)
         terms.append((*attribute, operator, key))
-    return ('AND' if negate else 'OR'), terms
+    # Several keys mean any of them; Thunderbird's default for a single condition is AND.
+    return ('OR' if len(terms) > 1 and not negate else 'AND'), terms
 
 
 def sieve_condition(test):
